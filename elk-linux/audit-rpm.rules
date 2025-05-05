@@ -1,0 +1,107 @@
+# --- 1. Enhance File Integrity Monitoring (FIM) ---
+
+# --- Critical File Changes ---
+-w /etc/passwd -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/sudoers -p wa -k sudoers-modification
+-w /etc/ssh/sshd_config -p wa -k ssh-config-modification
+-w /etc/hostname -p wa -k system-configuration
+
+# --- High Importance File Changes ---
+-w /etc/hosts -p wa -k system-configuration
+-w /etc/group -p wa -k identity
+-w /etc/issue -p wa -k system-configuration
+-w /etc/issue.net -p wa -k system-configuration
+-w /etc/ssl/ -p wa -k ssl-certificate-modification
+-w /etc/nginx/nginx.conf -p wa -k nginx-config-modification
+-w /etc/nginx/conf.d/ -p wa -k nginx-config-modification
+-w /etc/apache2/apache2.conf -p wa -k apache-config-modification
+-w /etc/apache2/conf-enabled/ -p wa -k apache-config-modification
+
+# --- Medium Importance File Changes ---
+-w /etc/sudoers.d/ -p wa -k sudoers-modification
+-w /etc/security/pam.d/ -p wa -k pam-config-modification
+-w /etc/ssl/private/ -p wa -k ssl-private-key-modification
+-w /etc/cron.d/ -p wa -k cron-config-modification
+-w /etc/cron.daily/ -p wa -k cron-config-modification
+-w /etc/cron.weekly/ -p wa -k cron-config-modification
+-w /etc/cron.monthly/ -p wa -k cron-config-modification
+-w /etc/rc.d/ -p wa -k rc-script-modification
+-w /etc/rc.local -p wa -k rc-local-modification
+-w /etc/init.d/ -p wa -k init-script-modification
+
+# --- General Configuration Files ---
+-w /etc/ -p wa -k config-modification
+
+# --- 2. Monitor Authentication and Authorization ---
+# Track sudo attempts and successful usage with more context.
+-w /var/log/sudo.log -p wa -k privileged-command-attempts
+-w /var/log/auth.log -p wa -k authentication-attempts
+-a always,exit -F arch=b64 -S execve -F path=/usr/bin/sudo -F auid>=500 -F auid!=4294967295 -F euid=0 -k privileged-command-executed
+-a always,exit -F arch=b32 -S execve -F path=/usr/bin/sudo -F auid>=500 -F auid!=4294967295 -F euid=0 -k privileged-command-executed
+-a always,exit -F arch=b64 -S su -F auid>=500 -F auid!=4294967295 -F euid=0 -k privileged-command-executed
+-a always,exit -F arch=b32 -S su -F auid>=500 -F auid!=4294967295 -F euid=0 -k privileged-command-executed
+-a always,exit -F arch=b64 -S login -k session-management
+-a always,exit -F arch=b32 -S login -k session-management
+-a always,exit -F arch=b64 -S sessionid -k session-management
+-a always,exit -F arch=b32 -S sessionid -k session-management
+
+# --- 3. Monitor Kernel and Module Activity ---
+# Detect potential rootkit or malicious module operations.
+-w /sbin/insmod -p x -k kernel-module-management
+-w /sbin/rmmod -p x -k kernel-module-management
+-w /sbin/modprobe -p x -k kernel-module-management
+-a always,exit -F arch=b64 -S init_module -S delete_module -k kernel-module-management
+-a always,exit -F arch=b32 -S init_module -S delete_module -k kernel-module-management
+-w /lib/modules/ -p wa -k kernel-module-file-changes
+
+# --- 4. Monitor Process and Memory Manipulation ---
+# Detect potential injection or unauthorized memory access.
+-a always,exit -F arch=b64 -S ptrace -F auid>=500 -F auid!=4294967295 -k process-injection-detected
+-a always,exit -F arch=b32 -S ptrace -F auid>=500 -F auid!=4294967295 -k process-injection-detected
+-a always,exit -F arch=b64 -S mprotect -F auid>=500 -F auid!=4294967295 -k memory-modification-detected
+-a always,exit -F arch=b32 -S mprotect -F auid>=500 -F auid!=4294967295 -k memory-modification-detected
+-a always,exit -F arch=b64 -S mmap -F auid>=500 -F auid!=4294967295 -k memory-modification-detected
+-a always,exit -F arch=b32 -S mmap -F auid>=500 -F auid!=4294967295 -k memory-modification-detected
+-a always,exit -F arch=b64 -S shmat -F auid>=500 -F auid!=4294967295 -k shared-memory-access # Shared memory
+
+# --- 5. Monitor Network Activity (Selective - High Noise Potential) ---
+# Be cautious enabling these broadly; focus on specific needs.
+-a always,exit -F arch=b64 -S execve -F auid>=500 -F auid!=4294967295 -F path=/usr/bin/nmap -k suspicious-network-tool-usage
+-a always,exit -F arch=b32 -S execve -F auid>=500 -F auid!=4294967295 -F path=/usr/bin/nmap -k suspicious-network-tool-usage
+-a always,exit -F arch=b64 -S execve -F auid>=500 -F auid!=4294967295 -F path=/usr/bin/netcat -k suspicious-network-tool-usage
+-a always,exit -F arch=b32 -S execve -F auid>=500 -F auid!=4294967295 -F path=/usr/bin/netcat -k suspicious-network-tool-usage
+-a always,exit -F arch=b64 -S execve -F auid>=500 -F auid!=4294967295 -F path=/usr/bin/curl -k suspicious-network-tool-usage # Often used for exfil/download
+-a always,exit -F arch=b32 -S execve -F auid>=500 -F auid!=4294967295 -F path=/usr/bin/curl -k suspicious-network-tool-usage
+-a always,exit -F arch=b64 -S execve -F auid>=500 -F auid!=4294967295 -F path=/usr/bin/wget -k suspicious-network-tool-usage
+-a always,exit -F arch=b32 -S execve -F auid>=500 -F auid!=4294967295 -F path=/usr/bin/wget -k suspicious-network-tool-usage
+
+# --- 6. Monitor Access to Sensitive Files by Privileged Users (More Specific) ---
+-a always,exit -F arch=b64 -S open -F path=/etc/shadow -F auid=0 -F exit=0 -k root-sensitive-file-access
+-a always,exit -F arch=b32 -S open -F path=/etc/shadow -F auid=0 -F exit=0 -k root-sensitive-file-access
+-a always,exit -F arch=b64 -S open -F path=/etc/passwd -F auid=0 -F exit=0 -k root-sensitive-file-access
+-a always,exit -F arch=b32 -S open -F path=/etc/passwd -F auid=0 -F exit=0 -k root-sensitive-file-access
+-a always,exit -F arch=b64 -S open -F path=/etc/sudoers -F auid=0 -F exit=0 -k root-sensitive-file-access
+-a always,exit -F arch=b32 -S open -F path=/etc/sudoers -F auid=0 -F exit=0 -k root-sensitive-file-access
+-w /etc/ -p wa -k sensitive-file-access # Broader watch, refine in SIEM
+-w /var/log/ -p wa -k sensitive-log-access # Broader watch, refine in SIEM
+-w /home/ -p wa -k user-home-access # Broader watch, refine in SIEM
+
+# --- 7. Monitor Permission and Ownership Changes (More Comprehensive) ---
+-a always,exit -F arch=b64 -S chmod -S fchmod -S fchmodat -F auid>=500 -F auid!=4294967295 -k permission-modification
+-a always,exit -F arch=b32 -S chmod -S fchmod -S fchmodat -F auid>=500 -F auid!=4294967295 -k permission-modification
+-a always,exit -F arch=b64 -S chown -S fchown -S fchownat -S lchown -F auid>=500 -F auid!=4294967295 -k ownership-modification
+-a always,exit -F arch=b32 -S chown -S fchown -S fchownat -S lchown -F auid>=500 -F auid!=4294967295 -k ownership-modification
+-a always,exit -F arch=b64 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=500 -F auid!=4294967295 -k extended-attribute-modification
+-a always,exit -F arch=b32 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=500 -F auid!=4294967295 -k extended-attribute-modification
+
+-w /etc/ -p wa -k sensitive-dir-perm-modification # Broader watch
+-w /var/log/ -p wa -k sensitive-dir-perm-modification # Broader watch
+-w /home/ -p wa -k user-dir-perm-modification # Broader watch
+-w /usr/bin/ -p wa -k binary-perm-modification
+-w /bin/ -p wa -k binary-perm-modification
+-w /sbin/ -p wa -k binary-perm-modification
+
+# --- 8. Monitor Account Management ---
+-a always,exit -F arch=b64 -S useradd -S usermod -S userdel -k account-management
+-a always,exit -F arch=b32 -S useradd -S user
